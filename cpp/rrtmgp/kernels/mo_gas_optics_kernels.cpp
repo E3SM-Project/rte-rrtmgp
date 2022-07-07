@@ -236,8 +236,7 @@ void gas_optical_depths_minor(int max_gpt_diff, int ncol, int nlay, int ngpt, in
 
   // for (int ilay=1; ilay<=nlay; ilay++) {
   //   for (int icol=1; icol<=ncol; icol++) {
-  //     for (int igpt0=0; igpt0<=max_gpt_diff; igpt0++) {
-  parallel_for( Bounds<3>(nlay,ncol,{0,max_gpt_diff}) , YAKL_DEVICE_LAMBDA (int ilay, int icol, int igpt0) {
+  parallel_for( Bounds<2>(nlay,ncol) , YAKL_DEVICE_LAMBDA (int ilay, int icol) {
     // This check skips individual columns with no pressures in range
     //
     if ( layer_limits(icol,1) <= 0 || ilay < layer_limits(icol,1) || ilay > layer_limits(icol,2) ) {
@@ -277,23 +276,25 @@ void gas_optical_depths_minor(int max_gpt_diff, int ncol, int nlay, int ngpt, in
         int gptS = minor_limits_gpt(1,imnr);
         int gptE = minor_limits_gpt(2,imnr);
 
-        // Find the actual g-point to work on
-        int igpt = igpt0 + gptS;
+        for (int igpt0=0; igpt0<=max_gpt_diff; igpt0++) {
+          // Find the actual g-point to work on
+          int igpt = igpt0 + gptS;
 
-        // Proceed only if the g-point is within the correct range
-        if (igpt <= gptE) {
-          // What is the starting point in the stored array of minor absorption coefficients?
-          int minor_start = kminor_start(imnr);
+          // Proceed only if the g-point is within the correct range
+          if (igpt <= gptE) {
+            // What is the starting point in the stored array of minor absorption coefficients?
+            int minor_start = kminor_start(imnr);
 
-          real tau_minor = 0._wp;
-          int iflav = gpt_flv(idx_tropo,igpt); // eta interpolation depends on flavor
-          int minor_loc = minor_start + (igpt - gptS); // add offset to starting point
-          real kminor_loc = interpolate2D(fminor.slice<2>(COLON,COLON,iflav,icol,ilay), kminor, minor_loc,  
-                                          jeta.slice<1>(COLON,iflav,icol,ilay), myjtemp, nminork, neta, ntemp);
-          tau_minor = kminor_loc * scaling;
+            real tau_minor = 0._wp;
+            int iflav = gpt_flv(idx_tropo,igpt); // eta interpolation depends on flavor
+            int minor_loc = minor_start + (igpt - gptS); // add offset to starting point
+            real kminor_loc = interpolate2D(fminor.slice<2>(COLON,COLON,iflav,icol,ilay), kminor, minor_loc,  
+                                            jeta.slice<1>(COLON,iflav,icol,ilay), myjtemp, nminork, neta, ntemp);
+            tau_minor = kminor_loc * scaling;
 
-          yakl::atomicAdd( tau(igpt,ilay,icol) , tau_minor );
-        }  // igpt <= gptE
+            tau(igpt,ilay,icol) += tau_minor;
+          }  // igpt <= gptE
+        }
       }
     }
   });
