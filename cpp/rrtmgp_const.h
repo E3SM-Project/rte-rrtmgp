@@ -9,9 +9,11 @@ template <class T, int rank, int myMem> using FArray = yakl::Array<T,rank,myMem,
 
 typedef double real;
 
-YAKL_INLINE real constexpr operator"" _wp( long double x ) {
-  return static_cast<real>(x);
-}
+using std::max;
+using std::min;
+using std::abs;
+using yakl::memHost;
+using yakl::memDevice;
 
 typedef FArray<real,1,yakl::memDevice> real1d;
 typedef FArray<real,2,yakl::memDevice> real2d;
