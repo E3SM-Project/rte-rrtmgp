@@ -16,7 +16,9 @@
 
 module mo_gas_optics_kernels
   use mo_rte_kind,      only: wp, wl
+  use mo_rte_util_array,only: zero_array
   implicit none
+  public
 contains
   ! --------------------------------------------------------------------------------------
   ! Compute interpolation coefficients
@@ -65,11 +67,15 @@ contains
     ! local indexes
     integer :: icol, ilay, iflav, igases(2), itropo, itemp
 
-    !$acc enter data copyin(flavor,press_ref_log,temp_ref,vmr_ref,play,tlay,col_gas)
-    !$acc enter data create(jtemp,jpress,tropo,jeta,col_mix,fmajor,fminor)
-    !$acc enter data create(ftemp,fpress)
+    !$acc data copyin(flavor,press_ref_log,temp_ref,vmr_ref,play,tlay,col_gas) &
+    !$acc      copyout(jtemp,jpress,tropo,jeta,col_mix,fmajor,fminor) &
+    !$acc      create(ftemp,fpress)
+    !$omp target data map(to:flavor, press_ref_log, temp_ref, vmr_ref, play, tlay, col_gas) &
+    !$omp             map(alloc:jtemp, jpress, tropo, jeta, col_mix, fmajor, fminor) &
+    !$omp             map(alloc:ftemp, fpress)
 
-    !$acc parallel loop gang vector collapse(2)
+    !$acc parallel loop gang vector collapse(2) default(none)
+    !$omp target teams distribute parallel do simd collapse(2)
     do ilay = 1, nlay
       do icol = 1, ncol
         ! index and factor for temperature interpolation
@@ -90,7 +96,8 @@ contains
     ! loop over implemented combinations of major species
     ! PGI BUG WORKAROUND: if present(vmr_ref) isn't there, OpenACC runtime
     ! thinks it isn't present.
-    !$acc parallel loop gang vector collapse(4) private(igases) present(vmr_ref)
+    !$acc parallel loop gang vector collapse(4) default(none) private(igases) present(vmr_ref)
+    !$omp target teams distribute parallel do simd collapse(4) private(igases)
     do ilay = 1, nlay
       do icol = 1, ncol
         ! loop over implemented combinations of major species
@@ -125,9 +132,8 @@ contains
       end do ! icol,ilay
     end do
 
-    !$acc exit data delete(flavor,press_ref_log,temp_ref,vmr_ref,play,tlay,col_gas)
-    !$acc exit data copyout(jtemp,jpress,tropo,jeta,col_mix,fmajor,fminor)
-    !$acc exit data delete(ftemp,fpress)
+    !$acc end data
+    !$omp end target data
 
   end subroutine interpolation
   ! --------------------------------------------------------------------------------------
@@ -212,27 +218,47 @@ contains
     ! ----------------------------------------------------------------
 
     !$acc enter data create(itropo_lower, itropo_upper)
+    !$omp target enter data map(alloc:itropo_lower, itropo_upper)
     !$acc enter data copyin(play, tlay, tropo, gpoint_flavor, jeta, jtemp, col_gas, fminor, tau)
+    !$omp target enter data map(to:play, tlay, tropo, gpoint_flavor, jeta, jtemp, col_gas, fminor, tau)
 
     ! ---------------------
     ! Layer limits of upper, lower atmospheres
     ! ---------------------
+
+    !$acc kernels copyout(top_at_1)
+    !$omp target map(from:top_at_1)
     top_at_1 = play(1,1) < play(1, nlay)
+    !$acc end kernels
+    !$omp end target
+
     if(top_at_1) then
       !$acc parallel loop
+      !$omp target teams distribute parallel do simd
       do icol = 1,ncol
         itropo_lower(icol,2) = nlay
+#if defined(_CRAYFTN) || defined(__NVCOMPILER)
+        itropo_upper(icol,1) = 1
+        call minmaxloc(icol, tropo, play, itropo_lower(icol,1), itropo_upper(icol,2))
+#else
         itropo_lower(icol,1) = minloc(play(icol,:), dim=1, mask=tropo(icol,:))
         itropo_upper(icol,1) = 1
         itropo_upper(icol,2) = maxloc(play(icol,:), dim=1, mask=(.not. tropo(icol,:)))
+#endif
       end do
     else
       !$acc parallel loop
+      !$omp target teams distribute parallel do simd
       do icol = 1,ncol
         itropo_lower(icol,1) = 1
+#if defined(_CRAYFTN) || defined(__NVCOMPILER)
+        itropo_upper(icol,2) = nlay
+        call minmaxloc(icol, tropo, play, itropo_lower(icol,2), itropo_upper(icol,1))
+#else
         itropo_lower(icol,2) = minloc(play(icol,:), dim=1, mask=tropo(icol,:))
         itropo_upper(icol,2) = nlay
         itropo_upper(icol,1) = maxloc(play(icol,:), dim=1, mask=(.not.tropo(icol,:)))
+#endif
       end do
     end if
     ! ---------------------
@@ -291,8 +317,11 @@ contains
            tau)
 
     !$acc exit data delete(itropo_lower,itropo_upper)
+    !$omp target exit data map(release:itropo_lower, itropo_upper)
     !$acc exit data delete(play, tlay, tropo, gpoint_flavor, jeta, jtemp, col_gas, fminor)
+    !$omp target exit data map(release:play, tlay, tropo, gpoint_flavor, jeta, jtemp, col_gas, fminor)
     !$acc exit data copyout(tau)
+    !$omp target exit data map(from:tau)
 
   end subroutine compute_tau_absorption
   ! --------------------------------------------------------------------------------------
@@ -337,6 +366,7 @@ contains
 
     ! optical depth calculation for major species
     !$acc parallel loop collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do ilay = 1, nlay
       do icol = 1, ncol
         ! optical depth calculation for major species
@@ -414,6 +444,7 @@ contains
     max_gpt_diff = maxval( minor_limits_gpt(2,:) - minor_limits_gpt(1,:) )
 
     !$acc parallel loop gang vector collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do ilay = 1 , nlay
       do icol = 1, ncol
         do igpt0 = 0, max_gpt_diff
@@ -445,7 +476,7 @@ contains
                 if (scale_by_complement(imnr)) then ! scale by densities of all gases but the special one
                   scaling = scaling * (1._wp - mycol_gas_imnr * vmr_fact * dry_fact)
                 else
-                  scaling = scaling *          mycol_gas_imnr * vmr_fact * dry_fact
+                  scaling = scaling *         (mycol_gas_imnr * vmr_fact * dry_fact)
                 endif
               endif
             endif
@@ -473,6 +504,7 @@ contains
               tau_minor = kminor_loc * scaling
 
               !$acc atomic update
+              !$omp atomic update
               tau(igpt,ilay,icol) = tau(igpt,ilay,icol) + tau_minor
             endif
 
@@ -516,6 +548,7 @@ contains
     ! -----------------
 
     !$acc parallel loop collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do ilay = 1, nlay
       do icol = 1, ncol
         do igpt = 1, ngpt
@@ -538,7 +571,7 @@ contains
                     fmajor, jeta, tropo, jtemp, jpress,    &
                     gpoint_bands, band_lims_gpt,           &
                     pfracin, temp_ref_min, totplnk_delta, totplnk, gpoint_flavor, &
-                    sfc_src, lay_src, lev_src_inc, lev_src_dec) bind(C, name="compute_Planck_source")
+                    sfc_src, lay_src, lev_src_inc, lev_src_dec, sfc_source_Jac) bind(C, name="compute_Planck_source")
     integer,                                    intent(in) :: ncol, nlay, nbnd, ngpt
     integer,                                    intent(in) :: nflav, neta, npres, ntemp, nPlanckTemp
     real(wp),    dimension(ncol,nlay  ),        intent(in) :: tlay
@@ -561,8 +594,12 @@ contains
     real(wp), dimension(ngpt,     ncol), intent(out) :: sfc_src
     real(wp), dimension(ngpt,nlay,ncol), intent(out) :: lay_src
     real(wp), dimension(ngpt,nlay,ncol), intent(out) :: lev_src_inc, lev_src_dec
+
+    real(wp), dimension(ngpt,     ncol), intent(out) :: sfc_source_Jac
     ! -----------------
     ! local
+    real(wp), parameter                             :: delta_Tsurf = 1.0_wp
+
     integer  :: ilay, icol, igpt, ibnd, itropo, iflav
     integer  :: gptS, gptE
     real(wp), dimension(2), parameter :: one = [1._wp, 1._wp]
@@ -571,11 +608,17 @@ contains
     ! -----------------
 
     !$acc enter data copyin(tlay,tlev,tsfc,fmajor,jeta,tropo,jtemp,jpress,gpoint_bands,pfracin,totplnk,gpoint_flavor)
+    !$omp target enter data map(to:tlay, tlev, tsfc, fmajor, jeta, tropo, jtemp, jpress, gpoint_bands, pfracin, totplnk, gpoint_flavor)
     !$acc enter data create(sfc_src,lay_src,lev_src_inc,lev_src_dec)
+    !$omp target enter data map(alloc:sfc_src, lay_src, lev_src_inc, lev_src_dec)
     !$acc enter data create(pfrac,planck_function)
+    !$omp target enter data map(alloc:pfrac, planck_function)
+    !$acc enter data create(sfc_source_Jac)
+    !$omp target enter data map(alloc:sfc_source_Jac)
 
     ! Calculation of fraction of band's Planck irradiance associated with each g-point
     !$acc parallel loop collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do icol = 1, ncol
       do ilay = 1, nlay
         do igpt = 1, ngpt
@@ -595,20 +638,26 @@ contains
     ! Compute surface source irradiance for g-point, equals band irradiance x fraction for g-point
     !
     !$acc parallel loop
+    !$omp target teams distribute parallel do simd
     do icol = 1, ncol
-      call interpolate1D(tsfc(icol), temp_ref_min, totplnk_delta, totplnk, planck_function(1:nbnd,1,icol))
+      call interpolate1D(tsfc(icol)              , temp_ref_min, totplnk_delta, totplnk, planck_function(1:nbnd,1,icol))
+      call interpolate1D(tsfc(icol) + delta_Tsurf, temp_ref_min, totplnk_delta, totplnk, planck_function(1:nbnd,2,icol))
     end do
     !
     ! Map to g-points
     !
     !$acc parallel loop collapse(2)
+    !$omp target teams distribute parallel do simd collapse(2)
     do igpt = 1, ngpt
       do icol = 1, ncol
-        sfc_src(igpt,icol) = pfrac(igpt,sfc_lay,icol) * planck_function(gpoint_bands(igpt), 1, icol)
+        sfc_src       (igpt,icol) = pfrac(igpt,sfc_lay,icol) * planck_function(gpoint_bands(igpt),1,icol)
+        sfc_source_Jac(igpt,icol) = pfrac(igpt,sfc_lay,icol) * &
+                 (planck_function(gpoint_bands(igpt),2,icol) - planck_function(gpoint_bands(igpt),1,icol))
       end do
     end do ! icol
 
     !$acc parallel loop collapse(2)
+    !$omp target teams distribute parallel do simd collapse(2)
     do icol = 1, ncol
       do ilay = 1, nlay
         ! Compute layer source irradiance for g-point, equals band irradiance x fraction for g-point
@@ -621,7 +670,8 @@ contains
     ! Explicitly unroll a time-consuming loop here to increase instruction-level parallelism on a GPU
     ! Helps to achieve higher bandwidth
     !
-    !$acc parallel loop collapse(3)
+    !$acc parallel loop present(planck_function) collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do icol = 1, ncol, 2
       do ilay = 1, nlay
         do igpt = 1, ngpt
@@ -634,11 +684,13 @@ contains
 
     ! compute level source irradiances for each g-point, one each for upward and downward paths
     !$acc parallel loop
+    !$omp target teams distribute parallel do simd
     do icol = 1, ncol
       call interpolate1D(tlev(icol,     1), temp_ref_min, totplnk_delta, totplnk, planck_function(1:nbnd,       1,icol))
     end do
 
     !$acc parallel loop collapse(2)
+    !$omp target teams distribute parallel do simd collapse(2)
     do icol = 1, ncol
       do ilay = 2, nlay+1
         call interpolate1D(tlev(icol,ilay), temp_ref_min, totplnk_delta, totplnk, planck_function(1:nbnd,ilay,icol))
@@ -650,7 +702,8 @@ contains
     !
     ! Same unrolling as mentioned before
     !
-    !$acc parallel loop collapse(3)
+    !$acc parallel loop present(planck_function) collapse(3)
+    !$omp target teams distribute parallel do simd collapse(3)
     do icol = 1, ncol, 2
       do ilay = 1, nlay
         do igpt = 1, ngpt
@@ -665,8 +718,13 @@ contains
     end do ! icol
 
     !$acc exit data delete(tlay,tlev,tsfc,fmajor,jeta,tropo,jtemp,jpress,gpoint_bands,pfracin,totplnk,gpoint_flavor)
+    !$omp target exit data map(release:tlay, tlev, tsfc, fmajor, jeta, tropo, jtemp, jpress, gpoint_bands, pfracin, totplnk, gpoint_flavor)
     !$acc exit data delete(pfrac,planck_function)
+    !$omp target exit data map(release:pfrac, planck_function)
     !$acc exit data copyout(sfc_src,lay_src,lev_src_inc,lev_src_dec)
+    !$omp target exit data map(from:sfc_src, lay_src, lev_src_inc, lev_src_dec)
+    !$acc exit data copyout(sfc_source_Jac)
+    !$omp target exit data map(from:sfc_source_Jac)
 
   end subroutine compute_Planck_source
   ! ----------------------------------------------------------
@@ -675,6 +733,7 @@ contains
   !
   subroutine interpolate1D(val, offset, delta, table, res)
   !$acc routine seq
+  !$omp declare target
     ! input
     real(wp), intent(in) :: val,    & ! axis value at which to evaluate table
                             offset, & ! minimum of table axis
@@ -699,6 +758,7 @@ contains
   !
   function interpolate2D(fminor, k, igpt, jeta, jtemp) result(res)
   !$acc routine seq
+  !$omp declare target
     real(wp), dimension(2,2), intent(in) :: fminor ! interpolation fractions for minor species
                                        ! index(1) : reference eta level (temperature dependent)
                                        ! index(2) : reference temperature level
@@ -718,6 +778,7 @@ contains
   ! interpolation in temperature, pressure, and eta
   function interpolate3D(scaling, fmajor, k, igpt, jeta, jtemp, jpress) result(res)
   !$acc routine seq
+  !$omp declare target
     real(wp), dimension(2),     intent(in) :: scaling
     real(wp), dimension(2,2,2), intent(in) :: fmajor ! interpolation fractions for major species
                                                      ! index(1) : reference eta level (temperature dependent)
@@ -760,12 +821,15 @@ contains
     !$acc data copy(tau, ssa, g)                 &
     !$acc      copyin(tau_rayleigh, tau_abs)
 
+    call zero_array(ncol, nlay, ngpt, g)
     ! We are using blocking memory accesses here to improve performance
     !  of the transpositions. See also comments in mo_rrtmgp_util_reorder_kernels.F90
     !
     !$acc parallel default(none) vector_length(tile*tile)
     !$acc loop gang collapse(3)
-      do ilay = 1, nlay
+    !$omp target teams distribute parallel do simd collapse(3) &
+    !$omp& map(tofrom:tau, ssa, g) map(to:tau_rayleigh, tau_abs)
+    do ilay = 1, nlay
       do icol0 = 1, ncol, tile
         do igpt0 = 1, ngpt, tile
 
@@ -775,16 +839,13 @@ contains
               icol = icol0 + icdiff
               igpt = igpt0 + igdiff
               if (icol > ncol .or. igpt > ngpt) cycle
-
-           t = tau_abs(igpt,ilay,icol) + tau_rayleigh(igpt,ilay,icol)
-           tau(icol,ilay,igpt) = t
-           g  (icol,ilay,igpt) = 0._wp
-           if(t > 2._wp * tiny(t)) then
-             ssa(icol,ilay,igpt) = tau_rayleigh(igpt,ilay,icol) / t
-           else
-             ssa(icol,ilay,igpt) = 0._wp
-           end if
-
+               t = tau_abs(igpt,ilay,icol) + tau_rayleigh(igpt,ilay,icol)
+               tau(icol,ilay,igpt) = t
+               if(t > 2._wp * tiny(t)) then
+                 ssa(icol,ilay,igpt) = tau_rayleigh(igpt,ilay,icol) / t
+               else
+                 ssa(icol,ilay,igpt) = 0._wp
+               end if
             end do
           end do
 
@@ -813,6 +874,9 @@ contains
     !$acc parallel loop collapse(3) &
     !$acc&     copy(tau, ssa, p) &
     !$acc&     copyin(tau_rayleigh(:ngpt,:nlay,:ncol),tau_abs(:ngpt,:nlay,:ncol))
+    !$omp target teams distribute parallel do simd collapse(3) &
+    !$omp& map(tofrom:tau, ssa, p) &
+    !$omp& map(to:tau_rayleigh(:ngpt, :nlay, :ncol), tau_abs(:ngpt, :nlay, :ncol))
     do icol = 1, ncol
       do ilay = 1, nlay
         do igpt = 1, ngpt
@@ -831,5 +895,39 @@ contains
       end do
     end do
   end subroutine combine_and_reorder_nstr
+
   ! ----------------------------------------------------------
+  !
+  ! In-house subroutine for handling minloc and maxloc for
+  ! compilers which do not support GPU versions
+  !
+  subroutine minmaxloc(i, mask, a, minl, maxl)
+    implicit none
+    !$acc routine seq
+    !$omp declare target
+    integer :: i, minl, maxl
+    logical(wl) :: mask(:,:)
+    real(wp) :: a(:,:)
+    integer :: j, n
+    real(wp) :: aij, amax, amin
+    n = size(a,2)
+    amax = -huge(amax)
+    amin = huge(amin)
+    do j = 1, n
+      aij = a(i,j)
+      if (mask(i,j)) then
+        if (aij.lt.amin) then
+          amin = aij
+          minl = j
+        end if
+      else
+        if (aij.gt.amax) then
+          amax = aij
+          maxl = j
+        end if
+      end if
+    end do
+  end subroutine
+  ! ----------------------------------------------------------
+
 end module mo_gas_optics_kernels

@@ -7,6 +7,13 @@
 # Object files
 *.o
 
+# Dependency files
+*.d
+
+# Fortran module files
+*.mod
+*.mod.proxy
+
 # Intel vectorization reports
 *.optrpt
 
@@ -14,4 +21,11 @@
 Makefile.libs
 Makefile.conf
 
-src/
+# Intel code coverage
+*.dyn
+*.dpi
+*.spi
+*.spl
+*.HTML
+*.html
+*.gif

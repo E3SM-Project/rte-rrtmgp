@@ -37,7 +37,7 @@ contains
 
     if(msg /= "") then
       write(error_unit, *) msg
-      stop
+      error stop 1
     end if
   end subroutine
   !--------------------------------------------------------------------------------------------------------------------
@@ -70,9 +70,12 @@ contains
     real(wp), dimension(:,:,:),       allocatable :: kminor_lower,                    kminor_upper
 
     real(wp), dimension(:,:,:  ), allocatable :: rayl_lower, rayl_upper
-    real(wp), dimension(:      ), allocatable :: solar_src
+    real(wp), dimension(:      ), allocatable :: solar_quiet, solar_facular, solar_sunspot
+    real(wp)                                  :: tsi_default, mg_default, sb_default
     real(wp), dimension(:,:    ), allocatable :: totplnk
     real(wp), dimension(:,:,:,:), allocatable :: planck_frac
+    real(wp), dimension(:,:)    , allocatable :: optimal_angle_fit
+
     ! -----------------
     !
     ! Book-keeping variables
@@ -92,7 +95,8 @@ contains
                nminor_absorber_intervals_upper, &
                ncontributors_lower, &
                ncontributors_upper, &
-               ninternalSourcetemps
+               ninternalSourcetemps, &
+               nfit_coeffs
     ! --------------------------------------------------
     !
     ! How big are the various arrays?
@@ -117,12 +121,14 @@ contains
                       = get_dim_size(ncid,'temperature_Planck')
     ncontributors_lower = get_dim_size(ncid,'contributors_lower')
     ncontributors_upper = get_dim_size(ncid,'contributors_upper')
+    nfit_coeffs         = get_dim_size(ncid,'fit_coeffs') ! Will be 0 for SW
+
     ! -----------------
     !
     ! Read the many arrays
     !
     gas_names         = read_char_vec(ncid, 'gas_names', nabsorbers)
-    key_species       = read_field(ncid, 'key_species',  2, nlayers, nbnds)
+    key_species       = int(read_field(ncid, 'key_species',  2, nlayers, nbnds))
     band_lims         = read_field(ncid, 'bnd_limits_wavenumber', 2, nbnds)
     band2gpt          = int(read_field(ncid, 'bnd_limits_gpt', 2, nbnds))
     press_ref         = read_field(ncid, 'press_ref', npress)
@@ -155,9 +161,9 @@ contains
     scaling_gas_upper &
                       = read_char_vec(ncid, 'scaling_gas_upper', nminor_absorber_intervals_upper)
     kminor_start_lower &
-                      = read_field(ncid, 'kminor_start_lower', nminor_absorber_intervals_lower)
+                      = int(read_field(ncid, 'kminor_start_lower', nminor_absorber_intervals_lower))
     kminor_start_upper &
-                      = read_field(ncid, 'kminor_start_upper', nminor_absorber_intervals_upper)
+                      = int(read_field(ncid, 'kminor_start_upper', nminor_absorber_intervals_upper))
     vmr_ref           = read_field(ncid, 'vmr_ref', nlayers, nextabsorbers, ntemps)
 
     kmajor            = read_field(ncid, 'kmajor',  ngpts, nmixingfracs,  npress+1, ntemps)
@@ -177,6 +183,7 @@ contains
       !
       totplnk     = read_field(ncid, 'totplnk', ninternalSourcetemps, nbnds)
       planck_frac = read_field(ncid, 'plank_fraction', ngpts, nmixingfracs, npress+1, ntemps)
+      optimal_angle_fit = read_field(ncid, 'optimal_angle_fit', nfit_coeffs, nbnds)
       call stop_on_err(kdist%load(available_gases, &
                                   gas_names,   &
                                   key_species, &
@@ -200,12 +207,18 @@ contains
                                   kminor_start_lower, &
                                   kminor_start_upper, &
                                   totplnk, planck_frac,       &
-                                  rayl_lower, rayl_upper))
+                                  rayl_lower, rayl_upper, &
+                                  optimal_angle_fit))
     else
       !
       ! Solar source doesn't have an dependencies yet
       !
-      solar_src = read_field(ncid, 'solar_source', ngpts)
+      solar_quiet   = read_field(ncid, 'solar_source_quiet', ngpts)
+      solar_facular = read_field(ncid, 'solar_source_facular', ngpts)
+      solar_sunspot = read_field(ncid, 'solar_source_sunspot', ngpts)
+      tsi_default   = read_field(ncid, 'tsi_default')
+      mg_default    = read_field(ncid, 'mg_default')
+      sb_default    = read_field(ncid, 'sb_default')
       call stop_on_err(kdist%load(available_gases, &
                                   gas_names,   &
                                   key_species, &
@@ -228,7 +241,8 @@ contains
                                   scale_by_complement_upper, &
                                   kminor_start_lower, &
                                   kminor_start_upper, &
-                                  solar_src, &
+                                  solar_quiet, solar_facular, solar_sunspot, &
+                                  tsi_default, mg_default, sb_default, &
                                   rayl_lower, rayl_upper))
     end if
     ! --------------------------------------------------
