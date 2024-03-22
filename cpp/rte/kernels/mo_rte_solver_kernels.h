@@ -490,7 +490,7 @@ inline void sw_two_stream(int ncol, int nlay, int ngpt, real1dk const &mu0, real
   using conv::merge;
   using pool = conv::MemPoolSingleton;
 
-  real1dk mu0_inv(pool::alloc<real>(ncol), ncol);
+  real1dk mu0_inv = pool::alloc<real1dk>(ncol);
 
   real eps = std::numeric_limits<real>::epsilon();
 
@@ -564,7 +564,7 @@ inline void sw_two_stream(int ncol, int nlay, int ngpt, real1dk const &mu0, real
 
   });
 
-  pool::dealloc(mu0_inv.data(), mu0_inv.size());
+  pool::dealloc(mu0_inv);
 }
 
 

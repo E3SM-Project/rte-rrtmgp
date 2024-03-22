@@ -596,10 +596,8 @@ void interpolation(int ncol, int nlay, int ngas, int nflav, int neta, int npres,
   using conv::merge;
 
   using pool = conv::MemPoolSingleton;
-  const int dsize = ncol *nlay;
-  real* data = pool::alloc<real>(dsize*2), *dcurr = data;
-  real2dk ftemp (dcurr,ncol,nlay); dcurr += dsize;
-  real2dk fpress(dcurr,ncol,nlay); dcurr += dsize;
+  real2dk ftemp  = pool::alloc<real2dk>(ncol,nlay);
+  real2dk fpress = pool::alloc<real2dk>(ncol,nlay);
 
   real tiny = std::numeric_limits<real>::min();
 
@@ -648,7 +646,8 @@ void interpolation(int ncol, int nlay, int ngas, int nflav, int neta, int npres,
     fmajor(1,1,itemp,iflav,icol,ilay) =       fpress(icol,ilay)  * fminor(1,itemp,iflav,icol,ilay);
   });
 
-  pool::dealloc(data, dcurr - data);
+  pool::dealloc(ftemp);
+  pool::dealloc(fpress);
 }
 
 void combine_and_reorder_2str(int ncol, int nlay, int ngpt, real3dk const &tau_abs, real3dk const &tau_rayleigh,
@@ -690,11 +689,8 @@ void compute_Planck_source(int ncol, int nlay, int nbnd, int ngpt, int nflav, in
   using conv::merge;
   using pool = conv::MemPoolSingleton;
 
-  const int dsize1 = ngpt*nlay*ncol;
-  const int dsize2 = ngpt*(nlay+1)*ncol;
-  real* data = pool::alloc<real>(dsize1 + dsize2), *dcurr = data;
-  real3dk pfrac          (dcurr,ngpt,nlay,ncol);   dcurr += dsize1;
-  real3dk planck_function(dcurr,nbnd,nlay+1,ncol); dcurr += dsize2;
+  real3dk pfrac           = pool::alloc<real3dk>(ngpt,nlay,ncol);
+  real3dk planck_function = pool::alloc<real3dk>(nbnd,nlay+1,ncol);
 
   // Calculation of fraction of band's Planck irradiance associated with each g-point
   // for (int icol=1; icol<=ncol; icol++) {
@@ -785,7 +781,8 @@ void compute_Planck_source(int ncol, int nlay, int nbnd, int ngpt, int nflav, in
     }
   });
 
-  pool::dealloc(data, dcurr - data);
+  pool::dealloc(pfrac);
+  pool::dealloc(planck_function);
 }
 
 
@@ -929,10 +926,8 @@ void compute_tau_absorption(int max_gpt_diff_lower, int max_gpt_diff_upper, int 
                             int2dk const &jtemp, int2dk const &jpress, real3dk const &tau, bool top_at_1) {
   using pool = conv::MemPoolSingleton;
 
-  const int dsize = 2*ncol;
-  int* data = pool::alloc<int>(2 * dsize), *icurr = data;
-  int2dk itropo_lower(icurr,ncol,2); icurr += dsize;
-  int2dk itropo_upper(icurr,ncol,2); icurr += dsize;
+  int2dk itropo_lower = pool::alloc<int2dk>(ncol,2);
+  int2dk itropo_upper = pool::alloc<int2dk>(ncol,2);
 
   int huge  = std::numeric_limits<int>::max();
   int small = std::numeric_limits<int>::min();
@@ -1032,6 +1027,7 @@ void compute_tau_absorption(int max_gpt_diff_lower, int max_gpt_diff_upper, int 
                            idx_minor_scaling_upper, kminor_start_upper, play, tlay, col_gas, fminor,
                            jeta, itropo_upper, jtemp, tau);
 
-  pool::dealloc(data, icurr - data);
+  pool::dealloc(itropo_lower);
+  pool::dealloc(itropo_upper);
 }
 #endif

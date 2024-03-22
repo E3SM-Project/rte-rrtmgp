@@ -423,10 +423,21 @@ struct MemPoolSingleton
 
   template <typename T>
   static inline
+  int64_t get_num_reals(const int64_t num) noexcept
+  {
+    static constexpr int64_t reals_per_cache_line = 16;
+    int64_t num_reals = (num * sizeof(T) + (sizeof(real) - 1)) / sizeof(real);
+    int64_t cache_lines = (num_reals + (reals_per_cache_line - 1)) / reals_per_cache_line;
+    return cache_lines * reals_per_cache_line;
+  }
+
+  template <typename T,
+            typename std::enable_if<!is_view_v<T>>::type* = nullptr>
+  static inline
   T* alloc(const int64_t num) noexcept
   {
     assert(sizeof(T) <= sizeof(real));
-    const int64_t num_reals = (num * sizeof(T) + (sizeof(real) - 1)) / sizeof(real);
+    const int64_t num_reals = get_num_reals<T>(num);
     T* rv = reinterpret_cast<T*>(s_mem.data() + s_curr_used);
     s_curr_used += num_reals;
     assert(s_curr_used <= s_mem.size());
@@ -476,7 +487,7 @@ struct MemPoolSingleton
   static inline
   void dealloc(const T*, const int64_t num) noexcept
   {
-    const int64_t num_reals = (num * sizeof(T) + (sizeof(real) - 1)) / sizeof(real);
+    const int64_t num_reals = get_num_reals<T>(num);
     s_curr_used -= num_reals;
     assert(s_curr_used >= 0);
   }

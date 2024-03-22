@@ -137,14 +137,11 @@ void rte_sw(OpticalProps2strK const &atmos, bool top_at_1, real1dk const &mu0, r
   const int ngpt  = atmos.get_ngpt();
   const int nband = atmos.get_nband();
 
-  const int dsize1 = ncol * (nlay+1) * ngpt;
-  const int dsize2 = ncol * ngpt;
-  real* data = pool::alloc<real>(dsize1*3 + dsize2*2), *dcurr = data;
-  real3dk gpt_flux_up    (dcurr,ncol, nlay+1, ngpt); dcurr += dsize1;
-  real3dk gpt_flux_dn    (dcurr,ncol, nlay+1, ngpt); dcurr += dsize1;
-  real3dk gpt_flux_dir   (dcurr,ncol, nlay+1, ngpt); dcurr += dsize1;
-  real2dk sfc_alb_dir_gpt(dcurr,ncol, ngpt);         dcurr += dsize2;
-  real2dk sfc_alb_dif_gpt(dcurr,ncol, ngpt);         dcurr += dsize2;
+  real3dk gpt_flux_up     = pool::alloc<real3dk>(ncol, nlay+1, ngpt);
+  real3dk gpt_flux_dn     = pool::alloc<real3dk>(ncol, nlay+1, ngpt);
+  real3dk gpt_flux_dir    = pool::alloc<real3dk>(ncol, nlay+1, ngpt);
+  real2dk sfc_alb_dir_gpt = pool::alloc<real2dk>(ncol, ngpt);
+  real2dk sfc_alb_dif_gpt = pool::alloc<real2dk>(ncol, ngpt);
 
   // Error checking -- consistency of sizes and validity of values
   if (! fluxes.are_desired()) { stoprun("rte_sw: no space allocated for fluxes"); }
@@ -200,6 +197,10 @@ void rte_sw(OpticalProps2strK const &atmos, bool top_at_1, real1dk const &mu0, r
   // ...and reduce spectral fluxes to desired output quantities
   fluxes.reduce(gpt_flux_up, gpt_flux_dn, atmos, top_at_1, gpt_flux_dir);
 
-  pool::dealloc(data, dcurr - data);
+  pool::dealloc(gpt_flux_up);
+  pool::dealloc(gpt_flux_dn);
+  pool::dealloc(gpt_flux_dir);
+  pool::dealloc(sfc_alb_dir_gpt);
+  pool::dealloc(sfc_alb_dif_gpt);
 }
 #endif

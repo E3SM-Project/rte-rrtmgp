@@ -173,14 +173,11 @@ void rte_lw(int max_gauss_pts, real2dk const &gauss_Ds, real2dk const &gauss_wts
     n_quad_angs = n_gauss_angles;
   }
 
-  const int dsize1 = ncol * (nlay+1) * ngpt;
-  const int dsize2 = ncol * ngpt;
-  real* data = pool::alloc<real>(dsize1*2 + dsize2 + 2*n_quad_angs), *dcurr = data;
-  real3dk gpt_flux_up (dcurr,ncol,nlay+1,ngpt); dcurr += dsize1;
-  real3dk gpt_flux_dn (dcurr,ncol,nlay+1,ngpt); dcurr += dsize1;
-  real2dk sfc_emis_gpt(dcurr,ncol       ,ngpt); dcurr += dsize2;
-  real1dk tmp_Ds      (dcurr,n_quad_angs); dcurr += n_quad_angs;
-  real1dk tmp_wts     (dcurr,n_quad_angs); dcurr += n_quad_angs;
+  real3dk gpt_flux_up  = pool::alloc<real3dk>(ncol,nlay+1,ngpt);
+  real3dk gpt_flux_dn  = pool::alloc<real3dk>(ncol,nlay+1,ngpt);
+  real2dk sfc_emis_gpt = pool::alloc<real2dk>(ncol       ,ngpt);
+  real1dk tmp_Ds       = pool::alloc<real1dk>(n_quad_angs);
+  real1dk tmp_wts      = pool::alloc<real1dk>(n_quad_angs);
 
   // Error checking
   //   if inc_flux is present it has the right dimensions, is positive definite
@@ -235,6 +232,10 @@ void rte_lw(int max_gauss_pts, real2dk const &gauss_Ds, real2dk const &gauss_wts
   // ...and reduce spectral fluxes to desired output quantities
   fluxes.reduce(gpt_flux_up, gpt_flux_dn, optical_props, top_at_1);
 
-  pool::dealloc(data, dcurr - data);
+  pool::dealloc(gpt_flux_up);
+  pool::dealloc(gpt_flux_dn);
+  pool::dealloc(sfc_emis_gpt);
+  pool::dealloc(tmp_Ds);
+  pool::dealloc(tmp_wts);
 }
 #endif
