@@ -606,7 +606,9 @@ class GasOpticsRRTMGPK : public OpticalPropsK<RealT, LayoutT, DeviceT> {
     //   do i = 1, size(this%flavor, 1) ! extents should be 2
     auto this_flavor = this->flavor;
     auto this_is_key = this->is_key;
-    TIMED_KERNEL(FLATTEN_MD_KERNEL2(this->flavor.extent(0), this->flavor.extent(1), i, j,
+    const int dim0 = this->flavor.extent(0);
+    const int dim1 = this->flavor.extent(1);
+    TIMED_KERNEL(FLATTEN_MD_KERNEL2(dim0, dim1, i, j,
       if (this_flavor(i,j) != -1) { this_is_key(this_flavor(i,j)) = true; }
     ));
   }
