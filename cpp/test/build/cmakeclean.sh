@@ -1,4 +1,4 @@
 #!/bin/bash
 
-rm -rf CMakeCache.txt CMakeFiles cmake_install.cmake CTestTestfile.cmake Makefile yakl kokkos allsky Testing rrtmgp \
+rm -rf CMakeCache.txt CMakeFiles cmake_install.cmake CTestTestfile.cmake Makefile kokkos allsky Testing rrtmgp \
        allsky_fortran_openacc allsky_fortran fortran_module_files

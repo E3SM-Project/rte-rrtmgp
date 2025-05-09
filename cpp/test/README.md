@@ -2,7 +2,7 @@
 To run tests, execute the following:
 ```
 cd ${HOME}
-git clone https://github.com/mrnorman/YAKL.git
+git clone https://github.com/kokkos/kokkos.git
 git clone https://github.com/E3SM-Project/rte-rrtmgp.git
 cd rte-rrtmgp/cpp/test/build
 source machine_environment_files/my_machine_file.sh

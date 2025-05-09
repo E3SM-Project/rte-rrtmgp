@@ -6,11 +6,6 @@
 #include "mo_gas_optics_rrtmgp.h"
 #include <string>
 
-#ifdef RRTMGP_ENABLE_YAKL
-void load_and_init(GasOpticsRRTMGP &kdist, std::string filename, GasConcs const &available_gases);
-#endif
-
-#ifdef RRTMGP_ENABLE_KOKKOS
 template <typename RealT, typename LayoutT, typename DeviceT>
 void load_and_init(
   GasOpticsRRTMGPK<RealT, LayoutT, DeviceT> &kdist,
@@ -163,4 +158,3 @@ void load_and_init(
   }
   io.close();
 }
-#endif
