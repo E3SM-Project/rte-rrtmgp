@@ -3,18 +3,6 @@
 #include "rrtmgp_const.h"
 #include "rrtmgp_conversion.h"
 
-#ifdef RRTMGP_ENABLE_YAKL
-// Spectral reduction over all points
-void sum_broadband(int ncol, int nlev, int ngpt, real3d const &spectral_flux, real2d const &broadband_flux);
-
-// Net flux: Spectral reduction over all points
-void net_broadband(int ncol, int nlev, int ngpt, real3d const &spectral_flux_dn, real3d const &spectral_flux_up, real2d const &broadband_flux_net);
-
-// Net flux when bradband flux up and down are already available
-void net_broadband(int ncol, int nlev, real2d const &flux_dn, real2d const &flux_up, real2d const &broadband_flux_net);
-#endif
-
-#ifdef RRTMGP_ENABLE_KOKKOS
 // Spectral reduction over all points
 template <typename SpectralT, typename BroadbandT>
 void sum_broadband(int ncol, int nlev, int ngpt, SpectralT const &spectral_flux, BroadbandT const &broadband_flux) {
@@ -77,4 +65,3 @@ void net_broadband(int ncol, int nlev, FluxDnT const &flux_dn, FluxUpT const &fl
      broadband_flux_net(icol,ilev) = flux_dn(icol,ilev) - flux_up(icol,ilev);
   ));
 }
-#endif

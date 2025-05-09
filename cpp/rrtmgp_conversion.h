@@ -6,26 +6,10 @@
 #include <chrono>
 
 // Validate if both enabled?
-#ifdef RRTMGP_ENABLE_KOKKOS
 #include <netcdf.h>
-#ifdef RRTMGP_ENABLE_YAKL
-// Both are on, validate
-#define COMPUTE_SWITCH(yimpl, kimpl) \
-  (kimpl); RRT_REQUIRE((yimpl) == (kimpl), "Bad COMPUTE_SWITCH")
-#else
-#define COMPUTE_SWITCH(yimpl, kimpl) kimpl
-#endif
-#else
-#define COMPUTE_SWITCH(yimpl, kimpl) yimpl
-#endif
 
-#ifdef RRTMGP_ENABLE_KOKKOS
 #define GENERIC_INLINE KOKKOS_INLINE_FUNCTION
 #define KERNEL_FENCE Kokkos::fence()
-#else
-#define GENERIC_INLINE YAKL_INLINE
-#define KERNEL_FENCE yakl::fence()
-#endif
 
 //#define ENABLE_TIMING
 // Macro for timing kernels
@@ -64,7 +48,6 @@
 #define TIMED_INLINE_KERNEL(name, kernel) kernel
 #endif
 
-
 /**
  * Helper functions for the conversion to Kokkos
  */
@@ -98,11 +81,7 @@ GENERIC_INLINE decltype(T1()+T2()) merge(T1 const t, T2 const f, bool cond) noex
 template <typename T>
 struct is_view
 {
-#ifdef RRTMGP_ENABLE_KOKKOS
   static constexpr bool value = Kokkos::is_view<T>::value;
-#else
-  static constexpr bool value = false;
-#endif
 };
 
 // Convenient way of using is_view meta function
@@ -219,28 +198,6 @@ do {                                                      \
 // Just a convenient require macro for checking things. Note this is
 // not an assert macro, so it's always on.
 #define RRT_REQUIRE(condition, msg) IMPL_THROW_RRT(condition, msg, std::runtime_error)
-
-#ifdef RRTMGP_ENABLE_KOKKOS
-
-// Macros for validating kokkos using yakl. These all do nothing if
-// YAKL is not enabled.
-#ifdef RRTMGP_ENABLE_YAKL
-#define VALIDATE_KOKKOS(yobj, kobj) kobj.validate_kokkos(yobj)
-#else
-#define VALIDATE_KOKKOS(yobj, kobj) (void)0
-#endif
-
-#ifdef RRTMGP_ENABLE_YAKL
-#define COMPARE_ALL_WRAP(yobjs, kobjs) conv::compare_all_yakl_to_kokkos(yobjs, kobjs)
-#else
-#define COMPARE_ALL_WRAP(yobjs, kobjs) (void)0
-#endif
-
-#ifdef RRTMGP_ENABLE_YAKL
-#define COMPARE_WRAP(yobj, kobj) conv::compare_yakl_to_kokkos(yobj, kobj)
-#else
-#define COMPARE_WRAP(yobj, kobj) (void)0
-#endif
 
 // Copied from EKAT. Get Kokkos view template type
 template<typename T, int N>
@@ -535,108 +492,6 @@ void unflatten_idx(const int idx, const Kokkos::Array<int, 4>& dims, int& i, int
       kernel;                                                           \
     });                                                               \
   }
-
-
-#ifdef RRTMGP_ENABLE_YAKL
-// Compare a yakl array to a kokkos view, checking they are functionally
-// identical (same rank, dims, and values).
-template <typename YArray, typename KView>
-void compare_yakl_to_kokkos(const YArray& yarray, const KView& kview, bool index_data=false)
-{
-  using yakl::intrinsics::size;
-  using LeftHostView = Kokkos::View<typename KView::non_const_data_type, Kokkos::LayoutLeft, HostDevice>;
-
-  constexpr auto krank = KView::rank;
-  const auto yrank = yarray.get_rank();
-
-  RRT_REQUIRE(krank == yrank, "Rank mismatch for: " << kview.label());
-
-  Kokkos::LayoutLeft llayout;
-  for (auto r = 0; r < krank; ++r) {
-    llayout.dimension[r] = kview.layout().dimension[r];
-  }
-  LeftHostView hkview("read_data", llayout);
-  Kokkos::deep_copy(hkview, kview);
-
-  RRT_REQUIRE(kview.is_allocated() == yakl::intrinsics::allocated(yarray),
-              "Allocation status mismatch for: " << kview.label());
-  if (!kview.is_allocated()) {
-    // we're done
-    return;
-  }
-
-  auto hyarray = yarray.createHostCopy();
-
-  for (auto r = 0; r < krank; ++r) {
-    RRT_REQUIRE(kview.extent(r) == size(yarray,r+1), "Dim mismatch for: " << kview.label() << ", rank: " << r << ", " << kview.extent(r) << " != " <<  size(yarray,r+1));
-  }
-
-  auto total_size = kview.size();
-  for (auto i = 0; i < total_size; ++i) {
-    const auto kdata = hkview.data()[i];
-    const auto ydata = hyarray.data()[i];
-    if (index_data) {
-      if (kdata < 0 && ydata <= 0) {
-        // pass
-      }
-      else {
-        RRT_REQUIRE((kdata + (index_data ? 1 : 0)) == ydata, "Data mismatch for: " << kview.label() << ", i: " << i << ", " << kdata << " != " << ydata);
-      }
-    }
-    else {
-      RRT_REQUIRE(approx_eq(kdata, ydata), "Data mismatch for: " << kview.label() << ", i: " << i << ", " << kdata << " != " << ydata);
-    }
-
-  }
-}
-
-inline
-void compare_yakl_to_kokkos_str(const string1d& yarray, const string1dv& kstrs)
-{
-  using yakl::intrinsics::size;
-
-  RRT_REQUIRE(size(yarray, 1) == kstrs.size(), "Dim mistmatch for: " << yarray.label());
-  for (auto i = 0; i < kstrs.size(); ++i) {
-    RRT_REQUIRE(yarray(i+1) == kstrs[i], "Data mismatch for: " << yarray.label());
-  }
-}
-
-template <typename YArray, typename KView>
-void compare_all_yakl_to_kokkos(const std::vector<YArray>& yarrays, const std::vector<KView>& kviews)
-{
-  RRT_REQUIRE(yarrays.size() == kviews.size(), "Mismatched vector lengths");
-  for (size_t i = 0; i < yarrays.size(); ++i) {
-    compare_yakl_to_kokkos(yarrays[i], kviews[i]);
-  }
-}
-
-template <typename KView>
-struct ToYakl
-{
-  using scalar_t = typename KView::value_type;
-  static constexpr auto yakl_mem = std::is_same_v<typename KView::device_type, HostDevice> ? yakl::memHost : yakl::memDevice;
-  using type = FArray<scalar_t, KView::rank, yakl_mem>;
-};
-
-// Allocate and populate a yakl array from a kokkos view
-template <typename KView>
-typename ToYakl<KView>::type to_yakl(const KView& view)
-{
-  using yarray_t    = typename ToYakl<KView>::type;
-  using exe_space_t = typename KView::execution_space;
-
-  std::vector<int> dims(KView::rank); // List of dimensions for this variable
-  for (auto i = 0; i < KView::rank; ++i) {
-    dims[i] = view.extent(i);
-  }
-  yarray_t rv(view.name(), dims);
-  Kokkos::parallel_for( Kokkos::RangePolicy<exe_space_t>(0, view.size()),
-                        KOKKOS_LAMBDA(size_t i) {
-    rv.data()[i] = view.data()[i];
-  });
-  return rv;
-}
-#endif
 
 // A < functor
 template <typename T>
@@ -1591,7 +1446,5 @@ class Random {
   }
 
 };
-
-#endif
 
 }

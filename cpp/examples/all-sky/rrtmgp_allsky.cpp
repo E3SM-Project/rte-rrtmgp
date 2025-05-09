@@ -73,15 +73,15 @@ int main(int argc , char **argv) {
     if (verbose) std::cout << "Reading input file\n\n";
     read_atmos(input_file, p_lay_k, t_lay_k, p_lev_k, t_lev_k, gas_concs_k, col_dry_k, ncol);
 
-    const int nlay = COMPUTE_SWITCH(size(p_lay,2), p_lay_k.extent(1));
-    const int nlev = COMPUTE_SWITCH(size(p_lev,2), p_lev_k.extent(1));
+    const int nlay = p_lay_k.extent(1);
+    const int nlev = p_lev_k.extent(1);
 
     // load data into classes
     if (verbose) std::cout << "Reading k_dist file\n\n";
     GasOpticsRRTMGPK<real, LayoutT> k_dist_k;
     load_and_init(k_dist_k, k_dist_file, gas_concs_k);
 
-    bool is_sw = COMPUTE_SWITCH(k_dist.source_is_external(), k_dist_k.source_is_external());
+    bool is_sw = k_dist_k.source_is_external();
 
     if (verbose) std::cout << "Reading cloud optics file\n\n";
     CloudOpticsK<real, LayoutT> cloud_optics_k;
@@ -93,10 +93,10 @@ int main(int argc , char **argv) {
     cloud_optics_k.set_ice_roughness(2);
 
     // Problem sizes
-    int nbnd = COMPUTE_SWITCH(k_dist.get_nband(), k_dist_k.get_nband());
-    int ngpt = COMPUTE_SWITCH(k_dist.get_ngpt(), k_dist_k.get_ngpt());
+    int nbnd = k_dist_k.get_nband();
+    int ngpt = k_dist_k.get_ngpt();
     auto p_lay_host_k = Kokkos::create_mirror_view_and_copy(HostDevice(), p_lay_k);
-    bool top_at_1 = COMPUTE_SWITCH(p_lay_host(1, 1) < p_lay_host(1, nlay), p_lay_host_k(0, 0) < p_lay_host_k(0, nlay-1));
+    bool top_at_1 = p_lay_host_k(0, 0) < p_lay_host_k(0, nlay-1);
 
     // LW calculations neglect scattering; SW calculations use the 2-stream approximation
     if (is_sw) {  // Shortwave
@@ -141,10 +141,8 @@ int main(int argc , char **argv) {
 
       // Restrict clouds to troposphere (> 100 hPa = 100*100 Pa) and not very close to the ground (< 900 hPa), and
       // put them in 2/3 of the columns since that's roughly the total cloudiness of earth
-      real rel_val = COMPUTE_SWITCH(0.5 * (cloud_optics.get_min_radius_liq() + cloud_optics.get_max_radius_liq()),
-                                    0.5 * (cloud_optics_k.get_min_radius_liq() + cloud_optics_k.get_max_radius_liq()));
-      real rei_val = COMPUTE_SWITCH(0.5 * (cloud_optics.get_min_radius_ice() + cloud_optics.get_max_radius_ice()),
-                                    0.5 * (cloud_optics_k.get_min_radius_ice() + cloud_optics_k.get_max_radius_ice()));
+      real rel_val = 0.5 * (cloud_optics_k.get_min_radius_liq() + cloud_optics_k.get_max_radius_liq());
+      real rei_val = 0.5 * (cloud_optics_k.get_min_radius_ice() + cloud_optics_k.get_max_radius_ice());
 
       // do ilay=1,nlay
       //   do icol=1,ncol
@@ -235,8 +233,6 @@ int main(int argc , char **argv) {
       real2d_t gauss_wts_k("gauss_wts",max_gauss_pts,max_gauss_pts);
       Kokkos::deep_copy(gauss_Ds_k, gauss_Ds_host_k);
       Kokkos::deep_copy(gauss_wts_k, gauss_wts_host_k);
-      COMPARE_WRAP(gauss_Ds, gauss_Ds_k);
-      COMPARE_WRAP(gauss_wts, gauss_wts_k);
 
       OpticalProps1sclK<real, LayoutT> atmos_k;
       OpticalProps1sclK<real, LayoutT> clouds_k;
@@ -279,10 +275,8 @@ int main(int argc , char **argv) {
       //   and not very close to the ground (< 900 hPa), and
       //   put them in 2/3 of the columns since that's roughly the
       //   total cloudiness of earth
-      real rel_val = COMPUTE_SWITCH(0.5 * (cloud_optics.get_min_radius_liq() + cloud_optics.get_max_radius_liq()),
-                                    0.5 * (cloud_optics_k.get_min_radius_liq() + cloud_optics_k.get_max_radius_liq()));
-      real rei_val = COMPUTE_SWITCH(0.5 * (cloud_optics.get_min_radius_ice() + cloud_optics.get_max_radius_ice()),
-                                    0.5 * (cloud_optics_k.get_min_radius_ice() + cloud_optics_k.get_max_radius_ice()));
+      real rel_val = 0.5 * (cloud_optics_k.get_min_radius_liq() + cloud_optics_k.get_max_radius_liq());
+      real rei_val = 0.5 * (cloud_optics_k.get_min_radius_ice() + cloud_optics_k.get_max_radius_ice());
 
       // do ilay=1,nlay
       //   do icol=1,ncol
