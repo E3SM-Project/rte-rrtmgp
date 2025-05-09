@@ -5,13 +5,6 @@
 #include "mo_optical_props.h"
 #include "mo_cloud_optics.h"
 
-#ifdef RRTMGP_ENABLE_YAKL
-void load_cld_lutcoeff(CloudOptics &cloud_spec, std::string cld_coeff_file);
-
-void load_cld_padecoeff(CloudOptics &cloud_spec, std::string cld_coeff_file);
-#endif
-
-#ifdef RRTMGP_ENABLE_KOKKOS
 // read cloud optical property LUT coefficients from NetCDF file
 template <typename RealT, typename LayoutT, typename DeviceT>
 void load_cld_lutcoeff(CloudOpticsK<RealT, LayoutT, DeviceT> &cloud_spec,
@@ -122,4 +115,3 @@ void load_cld_padecoeff(CloudOpticsK<RealT, LayoutT, DeviceT> &cloud_spec,
                                  pade_sizreg_extliq, pade_sizreg_ssaliq, pade_sizreg_asyliq,
                                  pade_sizreg_extice, pade_sizreg_ssaice, pade_sizreg_asyice);
 }
-#endif

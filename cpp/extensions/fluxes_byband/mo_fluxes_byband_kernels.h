@@ -2,12 +2,6 @@
 #include "rrtmgp_const.h"
 #include "rrtmgp_conversion.h"
 
-#ifdef RRTMGP_ENABLE_YAKL
-void sum_byband(int ncol, int nlev, int ngpt, int nbnd, int2d const &bnd_lims, real3d const &spectral_flux, real3d &byband_flux);
-void net_byband(int ncol, int nlev, int nbnd, real3d const &bnd_flux_dn, real3d const &bnd_flux_up, real3d &bnd_flux_net);
-#endif
-
-#ifdef RRTMGP_ENABLE_KOKKOS
 // Spectral reduction over all points
 template <typename BndLimsT, typename SpectralT, typename BybandT>
 void sum_byband(int ncol, int nlev, int ngpt, int nbnd, BndLimsT const &bnd_lims,
@@ -37,4 +31,3 @@ void net_byband(int ncol, int nlev, int nbnd,
     bnd_flux_net(icol,ilev,ibnd) = bnd_flux_dn(icol,ilev,ibnd) - bnd_flux_up(icol,ilev,ibnd);
   ));
 }
-#endif
