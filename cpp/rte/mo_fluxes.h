@@ -22,65 +22,7 @@
 //
 // -------------------------------------------------------------------------------------------------
 
-#ifdef RRTMGP_ENABLE_YAKL
-class FluxesBroadband {
-public:
-  real2d flux_up;
-  real2d flux_dn;
-  real2d flux_net;
-  real2d flux_dn_dir;
 
-
-  void reduce(real3d const &gpt_flux_up, const real3d &gpt_flux_dn, OpticalProps const &spectral_disc,
-              bool top_at_1, real3d const &gpt_flux_dn_dir=real3d()) {
-    using yakl::intrinsics::size;
-    using yakl::intrinsics::allocated;
-
-    int ncol = size(gpt_flux_up,1);
-    int nlev = size(gpt_flux_up,2);
-    int ngpt = size(gpt_flux_up,3);
-
-    // Self-consistency -- shouldn't be asking for direct beam flux if it isn't supplied
-    if (allocated(this->flux_dn_dir) && ! allocated(gpt_flux_dn_dir)) {
-      stoprun("reduce: requesting direct downward flux but this hasn't been supplied");
-    }
-
-    // Broadband fluxes - call the kernels
-    if (allocated(this->flux_up    )) { sum_broadband(ncol, nlev, ngpt, gpt_flux_up,     this->flux_up    ); }
-    if (allocated(this->flux_dn    )) { sum_broadband(ncol, nlev, ngpt, gpt_flux_dn,     this->flux_dn    ); }
-    if (allocated(this->flux_dn_dir)) { sum_broadband(ncol, nlev, ngpt, gpt_flux_dn_dir, this->flux_dn_dir); }
-    if (allocated(this->flux_net   )) {
-      // Reuse down and up results if possible
-      if (allocated(this->flux_dn) && allocated(this->flux_up)) {
-        net_broadband(ncol, nlev,      this->flux_dn, this->flux_up, this->flux_net);
-      } else {
-        net_broadband(ncol, nlev, ngpt,  gpt_flux_dn,   gpt_flux_up, this->flux_net);
-      }
-    }
-  }
-
-
-  bool are_desired() const {
-    using yakl::intrinsics::allocated;
-    return allocated(this->flux_up) || allocated(this->flux_dn) || allocated(this->flux_dn_dir) || allocated(this->flux_net);
-  }
-
-
-  void print_norms(const bool print_prefix=false) const {
-    using yakl::intrinsics::sum;
-    using yakl::intrinsics::allocated;
-    std::string prefix = print_prefix ? "JGFY" : "";
-
-    if (allocated(flux_up    )) { std::cout << prefix << std::setprecision(16) << "flux_up    : " << sum(flux_up    ) << "\n"; }
-    if (allocated(flux_dn    )) { std::cout << prefix << std::setprecision(16) << "flux_dn    : " << sum(flux_dn    ) << "\n"; }
-    if (allocated(flux_net   )) { std::cout << prefix << std::setprecision(16) << "flux_net   : " << sum(flux_net   ) << "\n"; }
-    if (allocated(flux_dn_dir)) { std::cout << prefix << std::setprecision(16) << "flux_dn_dir: " << sum(flux_dn_dir) << "\n"; }
-  }
-
-};
-#endif
-
-#ifdef RRTMGP_ENABLE_KOKKOS
 template <typename RealT=double, typename LayoutT=Kokkos::LayoutLeft, typename DeviceT=DefaultDevice>
 class FluxesBroadbandK {
 public:
@@ -132,15 +74,4 @@ public:
     if (flux_dn_dir.is_allocated()) { std::cout << prefix << std::setprecision(16) << "flux_dn_dir: " << conv::sum(flux_dn_dir) << "\n"; }
   }
 
-#ifdef RRTMGP_ENABLE_YAKL
-  void validate_kokkos(const FluxesBroadband& orig)
-  {
-    conv::compare_yakl_to_kokkos(orig.flux_up, flux_up);
-    conv::compare_yakl_to_kokkos(orig.flux_dn, flux_dn);
-    conv::compare_yakl_to_kokkos(orig.flux_net, flux_net);
-    conv::compare_yakl_to_kokkos(orig.flux_dn_dir, flux_dn_dir);
-  }
-#endif
-
 };
-#endif

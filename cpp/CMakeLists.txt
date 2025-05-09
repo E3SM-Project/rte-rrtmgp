@@ -14,3 +14,6 @@ target_include_directories(rrtmgp INTERFACE rte)
 target_include_directories(rrtmgp INTERFACE rte/kernels)
 target_include_directories(rrtmgp INTERFACE rrtmgp)
 target_include_directories(rrtmgp INTERFACE rrtmgp/kernels)
+
+execute_process(COMMAND nc-config --includedir OUTPUT_VARIABLE NCINCL OUTPUT_STRIP_TRAILING_WHITESPACE)
+target_include_directories(rrtmgp INTERFACE ${NCINCL})

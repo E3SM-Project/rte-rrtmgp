@@ -33,6 +33,7 @@ set(FORTRAN_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../../../rte/mo_optical_props.F90
                   ${CMAKE_CURRENT_SOURCE_DIR}/../../../extensions/mo_heating_rates.F90
                )
 add_executable(allsky_fortran ${FORTRAN_FILES})
-set_source_files_properties(${FORTRAN_FILES} PROPERTIES COMPILE_FLAGS "${YAKL_F90_FLAGS}")
 target_link_libraries(allsky_fortran "${F90_LINK}")
 
+execute_process(COMMAND nf-config --includedir OUTPUT_VARIABLE NCINCL OUTPUT_STRIP_TRAILING_WHITESPACE)
+target_include_directories(allsky_fortran PRIVATE ${NCINCL})

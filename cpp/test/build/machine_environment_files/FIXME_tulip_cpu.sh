@@ -12,4 +12,3 @@ export CXXFLAGS="-O3"
 unset ARCH
 unset CUDA_ARCH
 unset CUBHOME
-export YAKLHOME="/home/users/$USER/YAKL"

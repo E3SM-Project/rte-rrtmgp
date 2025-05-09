@@ -3,9 +3,6 @@ project(standalone C Fortran CXX)
 
 enable_testing()
 
-# TODO REMOVE
-add_definitions("-DRRTMGP_ENABLE_KOKKOS")
-
 set (CMAKE_CXX_STANDARD 17)
 
 # Build RRTMGP, Kokkos, and the standalone allsky code (which depends on both)

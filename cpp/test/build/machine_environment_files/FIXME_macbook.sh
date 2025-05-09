@@ -12,4 +12,3 @@ export CC=gcc
 export CXX=g++
 export CXXFLAGS="-O3 -I`nc-config --includedir`"
 export F90FLAGS="-O3 -I`nc-config --fflags`"
-export YAKLHOME="${HOME}/codes/yakl/YAKL"

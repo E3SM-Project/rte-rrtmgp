@@ -63,15 +63,6 @@ void printk(const std::string& name, const KView& view)
   }
 }
 
-// Print an entire yakl array + sentinel
-template <typename YArray>
-void printy(const std::string& name, const YArray& array)
-{
-  for (size_t i = 0; i < array.totElems(); ++i) {
-    std::cout << "JGFY " << name << "(" << i << ") = " << array.data()[i] << std::endl;
-  }
-}
-
 // Copied from YAKL
 template <class T1, class T2,
           typename std::enable_if<std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,bool>::type=false>
@@ -101,88 +92,6 @@ template <class View,
 GENERIC_INLINE
 typename View::non_const_value_type constexpr epsilon(const View& arr)
 { return std::numeric_limits<typename View::non_const_value_type>::epsilon(); }
-
-//
-// These are for debugging. They print values of kviews/yarrays preceeded by a
-// sentinel string that can be grepped for. This is how the compare_yk.sh script
-// can be used to debug differences between YAKL and Kokkos. You put the pNd calls
-// in the equivalent place for both the YAKL and Kokkos version of the code.
-//
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p1d(const KView& view, const std::string& name, int idx)
-{ std::cout << "JGFK " << name << "(" << idx << ") = " << view(idx) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p1d(const YArray& array, const std::string& name, int idx)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx-1 << ") = " << array(idx) - adjust_val << std::endl; }
-
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p2d(const KView& view, const std::string& name, int idx1, int idx2)
-{ std::cout << "JGFK " << name << "(" << idx1 << ", " << idx2 << ") = " << view(idx1, idx2) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p2d(const YArray& array, const std::string& name, int idx1, int idx2)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx1-1 << ", " << idx2-1 << ") = " << array(idx1, idx2) - adjust_val << std::endl; }
-
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p3d(const KView& view, const std::string& name, int idx1, int idx2, int idx3)
-{ std::cout << "JGFK " << name << "(" << idx1 << ", " << idx2 << ", " << idx3 << ") = " << view(idx1, idx2, idx3) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p3d(const YArray& array, const std::string& name, int idx1, int idx2, int idx3)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx1-1 << ", " << idx2-1 << ", " << idx3-1 << ") = " << array(idx1, idx2, idx3) - adjust_val << std::endl;
-}
-
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p4d(const KView& view, const std::string& name, int idx1, int idx2, int idx3, int idx4)
-{ std::cout << "JGFK " << name << "(" << idx1 << ", " << idx2 << ", " << idx3 << ", " << idx4 << ") = " << view(idx1, idx2, idx3, idx4) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p4d(const YArray& array, const std::string& name, int idx1, int idx2, int idx3, int idx4)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx1-1 << ", " << idx2-1 << ", " << idx3-1 << ", " << idx4-1 << ") = " << array(idx1, idx2, idx3, idx4) - adjust_val << std::endl;
-}
-
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p5d(const KView& view, const std::string& name, int idx1, int idx2, int idx3, int idx4, int idx5)
-{ std::cout << "JGFK " << name << "(" << idx1 << ", " << idx2 << ", " << idx3 << ", " << idx4 << ", " << idx5 << ") = " << view(idx1, idx2, idx3, idx4, idx5) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p5d(const YArray& array, const std::string& name, int idx1, int idx2, int idx3, int idx4, int idx5)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx1-1 << ", " << idx2-1 << ", " << idx3-1 << ", " << idx4-1 << ", " << idx5-1 << ") = " << array(idx1, idx2, idx3, idx4, idx5) - adjust_val << std::endl;
-}
-
-template <typename KView,
-          typename std::enable_if<is_view_v<KView>>::type* = nullptr>
-void p6d(const KView& view, const std::string& name, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6)
-{ std::cout << "JGFK " << name << "(" << idx1 << ", " << idx2 << ", " << idx3 << ", " << idx4 << ", " << idx5 << ", " << idx6 << ") = " << view(idx1, idx2, idx3, idx4, idx5, idx6) << std::endl; }
-
-template <typename YArray,
-          typename std::enable_if<!is_view_v<YArray>>::type* = nullptr>
-void p6d(const YArray& array, const std::string& name, int idx1, int idx2, int idx3, int idx4, int idx5, int idx6)
-{
-  const int adjust_val = std::is_same_v<typename YArray::non_const_value_type, int> ? 1 : 0;
-  std::cout << "JGFY " << name << "(" << idx1-1 << ", " << idx2-1 << ", " << idx3-1 << ", " << idx4-1 << ", " << idx5-1 << ", " << idx6-1 << ") = " << array(idx1, idx2, idx3, idx4, idx5, idx6) - adjust_val << std::endl;
-}
 
 // Copied from EKAT
 #define IMPL_THROW_RRT(condition, msg, exception_type)    \
