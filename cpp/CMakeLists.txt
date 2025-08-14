@@ -3,6 +3,11 @@
 ## It also assumes you've enabled CXX and C as languages
 ###############################################################################
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
+set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
+
+find_package(NetCDF REQUIRED)
+
 # Add RRTMGP source files.
 set(CXX_SRC
   rrtmgp/kernels/mo_gas_optics_kernels.cpp
@@ -27,6 +32,9 @@ endif()
 if (RRTMGP_ENABLE_KOKKOS)
   target_link_libraries(rrtmgp Kokkos::kokkos)
 endif()
+
+target_include_directories(rrtmgp PUBLIC $<BUILD_INTERFACE:${NETCDF_INCLUDES}>)
+target_link_libraries(rrtmgp $<BUILD_INTERFACE:${NETCDF_LIBRARIES}>)
 
 # Special compile flags for C++ source
 target_include_directories(rrtmgp PUBLIC ./)
