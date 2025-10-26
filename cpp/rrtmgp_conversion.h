@@ -505,8 +505,9 @@ void unflatten_idx(const int idx, const Kokkos::Array<int, 4>& dims, int& i, int
 
 #define FLATTEN_MD_KERNEL2(n1, n2, i1, i2, kernel)     \
   {                                                     \
-    Kokkos::Array<int, 2> dims_fmk_internal = {n1, n2};         \
-    const int dims_fmk_internal_tot = (n1)*(n2);                        \
+    const int n1_int = static_cast<int>(n1), n2_int = static_cast<int>(n2);  \
+    Kokkos::Array<int, 2> dims_fmk_internal = {n1_int, n2_int};         \
+    const int dims_fmk_internal_tot = (n1_int)*(n2_int);                        \
     Kokkos::parallel_for(dims_fmk_internal_tot, KOKKOS_LAMBDA (int idx_fmk_internal) { \
       int i1, i2;                                                     \
       conv::unflatten_idx<LayoutT>(idx_fmk_internal, dims_fmk_internal, i1, i2); \
@@ -516,8 +517,10 @@ void unflatten_idx(const int idx, const Kokkos::Array<int, 4>& dims, int& i, int
 
 #define FLATTEN_MD_KERNEL3(n1, n2, n3, i1, i2, i3, kernel)       \
   {                                                              \
-    Kokkos::Array<int, 3> dims_fmk_internal = {n1, n2, n3};      \
-    const int dims_fmk_internal_tot = (n1)*(n2)*(n3);                   \
+    const int n1_int = static_cast<int>(n1), n2_int = static_cast<int>(n2);   \
+    const int n3_int = static_cast<int>(n3);          \
+    Kokkos::Array<int, 3> dims_fmk_internal = {n1_int, n2_int, n3_int};      \
+    const int dims_fmk_internal_tot = (n1_int)*(n2_int)*(n3_int);                   \
     Kokkos::parallel_for(dims_fmk_internal_tot, KOKKOS_LAMBDA (int idx_fmk_internal) { \
       int i1, i2, i3;                                                 \
       conv::unflatten_idx<LayoutT>(idx_fmk_internal, dims_fmk_internal, i1, i2, i3); \
@@ -527,8 +530,10 @@ void unflatten_idx(const int idx, const Kokkos::Array<int, 4>& dims, int& i, int
 
 #define FLATTEN_MD_KERNEL4(n1, n2, n3, n4, i1, i2, i3, i4, kernel)       \
   {                                                                     \
-    Kokkos::Array<int, 4> dims_fmk_internal = {n1, n2, n3, n4};         \
-    const int dims_fmk_internal_tot = (n1)*(n2)*(n3)*(n4);              \
+    const int n1_int = static_cast<int>(n1), n2_int = static_cast<int>(n2);   \
+    const int n3_int = static_cast<int>(n3), n4_int = static_cast<int>(n4); \
+    Kokkos::Array<int, 4> dims_fmk_internal = {n1_int, n2_int, n3_int, n4_int};         \
+    const int dims_fmk_internal_tot = (n1_int)*(n2_int)*(n3_int)*(n4_int);              \
     Kokkos::parallel_for(dims_fmk_internal_tot, KOKKOS_LAMBDA (int idx_fmk_internal) { \
       int i1, i2, i3, i4;                                             \
       conv::unflatten_idx<LayoutT>(idx_fmk_internal, dims_fmk_internal, i1, i2, i3, i4); \
