@@ -6,7 +6,10 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules)
 set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
 
-find_package(NetCDF REQUIRED)
+# Compatibility with E3SM
+if (NOT TARGET netcdf)
+  find_package(NetCDF REQUIRED)
+endif()
 
 # Add RRTMGP source files.
 set(CXX_SRC
@@ -33,8 +36,10 @@ if (RRTMGP_ENABLE_KOKKOS)
   target_link_libraries(rrtmgp Kokkos::kokkos)
 endif()
 
-target_include_directories(rrtmgp PUBLIC $<BUILD_INTERFACE:${NETCDF_INCLUDES}>)
-target_link_libraries(rrtmgp $<BUILD_INTERFACE:${NETCDF_LIBRARIES}>)
+if (NOT TARGET netcdf)
+  target_include_directories(rrtmgp PUBLIC $<BUILD_INTERFACE:${NETCDF_INCLUDES}>)
+  target_link_libraries(rrtmgp $<BUILD_INTERFACE:${NETCDF_LIBRARIES}>)
+endif()
 
 # Special compile flags for C++ source
 target_include_directories(rrtmgp PUBLIC ./)
